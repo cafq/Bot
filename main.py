@@ -101,8 +101,18 @@ def loop():
                 df["time"] = pd.to_datetime(df["time"], unit="ms")
                 latest, signals = analyze(df)
                 if signals:
-                    msg = f"📊 {sym} ({TIMEFRAME})\n" + "\n".join(signals)
-                    msg += f"\n💰 Price: {latest['close']:.2f} | RSI: {latest['rsi']:.1f}"
+                   msg = f"""
+📊 {sym} — ({TIMEFRAME})
+
+📈 EMA20 ({latest['ema20']:.2f}) {'>' if latest['ema20'] > latest['ema50'] else '<'} EMA50 ({latest['ema50']:.2f})
+📉 MACD ({latest['macd']:.2f}) {'>' if latest['macd'] > latest['signal'] else '<'} Signal ({latest['signal']:.2f})
+💪 RSI : {latest['rsi']:.1f}
+
+⚡ Signal Global → {' / '.join(signals) if signals else 'Aucun signal'}
+💰 Prix : {latest['close']:.2f}
+🕒 {time.strftime('%Y-%m-%d %H:%M:%S')}
+"""
+
                     send_msg(msg)
                     print(msg)
             except Exception as e:
