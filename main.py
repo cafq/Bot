@@ -113,8 +113,8 @@ def loop():
 🕒 {time.strftime('%Y-%m-%d %H:%M:%S')}
 """
 
-                    send_msg(msg)
-                    print(msg)
+                   send_msg(msg)
+                   print(msg)
             except Exception as e:
                 print(f"Erreur {sym}: {e}")
         time.sleep(INTERVAL)
