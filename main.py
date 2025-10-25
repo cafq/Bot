@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 import requests
 import time
-
+from datetime import datetime
+import pytz
 # 🔑 Paramètres
 TELEGRAM_TOKEN = "7381197277:AAFyOkwfQvqCRMnTiWYT-5eIr_tF6_lQbEU"
 CHAT_ID = "@TradesignalAI"
@@ -110,7 +111,7 @@ def loop():
 
 ⚡ Signal Global → {' / '.join(signals) if signals else 'Aucun signal'}
 💰 Prix : {latest['close']:.2f}
-🕒 {time.strftime('%Y-%m-%d %H:%M:%S')}
+🕒 {datetime.now(pytz.timezone('Europe/Paris')).strftime('%Y-%m-%d %H:%M:%S')}
 """
 
                    send_msg(msg)
