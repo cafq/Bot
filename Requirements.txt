@@ -1,5 +1,5 @@
 ccxt
-yfinance==0.2.43 
+yfinance
 pandas
 numpy
 requests
