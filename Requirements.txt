@@ -1,0 +1,7 @@
+ccxt
+yfinance
+pandas
+numpy
+requests
+Flask
+pytz
