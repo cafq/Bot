@@ -33,7 +33,7 @@ INTERVAL = 300  # 5 min
 # Connexions API
 exchange = ccxt.kraken()
 
-fxcm = fxcmpy(access_token="demo", log_level="error", server="demo")
+fxcm = fxcmpy.fxcmpy(access_token="demo", log_level="error", server="demo")
 api_alpaca = tradeapi.REST()
 
 # Mémoire
