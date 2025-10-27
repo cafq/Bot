@@ -126,20 +126,19 @@ def get_yf_ohlcv_4h(symbol: str, days: int = 60) -> pd.DataFrame:
     if df.empty:
         raise Exception(f"Aucune donnée Yahoo pour {symbol}")
     df_4h = pd.DataFrame({
-        'open': df['Open'].resample('4H').first(),
-        'high': df['High'].resample('4H').max(),
-        'low': df['Low'].resample('4H').min(),
-        'close': df['Close'].resample('4H').last(),
-        'volume': df['Volume'].resample('4H').sum()
+        'open': df['Open'].resample('4h').first(),
+        'high': df['High'].resample('4h').max(),
+        'low': df['Low'].resample('4h').min(),
+        'close': df['Close'].resample('4h').last(),
+        'volume': df['Volume'].resample('4h').sum()
     }).dropna().reset_index()
     return df_4h
 
 # -------------------------------
-# 🔁 CHECK & ENVOI (anti-spam + variations)
+# 🔁 CHECK & ENVOI
 # -------------------------------
 def check_and_send(sym, chat_id, threshold, source="crypto"):
     try:
-        # 1) Données
         if source == "crypto":
             ohlcv = exchange.fetch_ohlcv(sym, TIMEFRAME, limit=LIMIT)
             df = pd.DataFrame(ohlcv, columns=["time","open","high","low","close","volume"])
@@ -147,7 +146,6 @@ def check_and_send(sym, chat_id, threshold, source="crypto"):
         else:
             df = get_yf_ohlcv_4h(sym, days=60)
 
-        # 2) Analyse
         latest, signals = analyze(df)
         current_price = latest["close"]
         key = f"{chat_id}_{sym}"
@@ -157,12 +155,10 @@ def check_and_send(sym, chat_id, threshold, source="crypto"):
         send = False
         update_prefix = ""
 
-        # Nouveau signal ?
         if signals and signals != last_signal:
             send = True
             last_prices[key] = current_price
 
-        # Variation de prix importante ?
         elif last_price:
             change = (current_price - last_price) / last_price
             if abs(change) >= threshold and last_signal:
@@ -174,7 +170,6 @@ def check_and_send(sym, chat_id, threshold, source="crypto"):
                     update_prefix = f"⚠️ {sym} — Le prix a baissé de {pct:.2f}% depuis le dernier signal.\n"
                 last_prices[key] = current_price
 
-        # Envoi du message
         if send and signals:
             msg = f"""
 {update_prefix}📊 {sym} — ({TIMEFRAME})
@@ -198,6 +193,38 @@ def check_and_send(sym, chat_id, threshold, source="crypto"):
 # 🔄 BOUCLE PRINCIPALE
 # -------------------------------
 def loop():
+    # --- Signal initial envoyé au démarrage ---
+    print("🔹 Envoi du signal initial au lancement du bot...")
+    for sym, chat_id, src in [
+        (s, CHAT_CRYPTO, "crypto") for s in SYMBOLS_CRYPTO
+    ] + [
+        (s, CHAT_FOREX, "yahoo") for s in SYMBOLS_FOREX
+    ] + [
+        (s, CHAT_ACTIONS, "yahoo") for s in SYMBOLS_ACTIONS
+    ]:
+        try:
+            df = (
+                get_yf_ohlcv_4h(sym, days=60)
+                if src == "yahoo"
+                else pd.DataFrame(exchange.fetch_ohlcv(sym, TIMEFRAME, limit=LIMIT),
+                                  columns=["time","open","high","low","close","volume"])
+            )
+            if src == "crypto":
+                df["time"] = pd.to_datetime(df["time"], unit="ms")
+
+            latest, signals = analyze(df)
+            msg = f"""
+📊 {sym} — ({TIMEFRAME})
+⚡ Signal initial → {' / '.join(signals) if signals else 'Aucun signal'}
+💰 Prix actuel : {latest['close']:.2f}
+🕒 {datetime.now(pytz.timezone('Europe/Paris')).strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            send_msg(chat_id, msg)
+            print(msg)
+        except Exception as e:
+            print(f"Erreur initiale {sym}: {e}")
+
+    # --- Boucle continue ---
     while True:
         for sym in SYMBOLS_CRYPTO:
             check_and_send(sym, CHAT_CRYPTO, THRESHOLD_CRYPTO, "crypto")
