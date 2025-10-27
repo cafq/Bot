@@ -23,7 +23,7 @@ CHAT_ACTIONS = "@TradeStocksAI"
 # Actifs suivis
 SYMBOLS_CRYPTO  = ["BTC/USDT", "SOL/USDT", "ETH/USDT"]  # Kraken (ccxt)
 # Finnhub Forex utilise un fournisseur (ici OANDA: ...)
-SYMBOLS_FOREX   = ["OANDA:EUR_USD", "OANDA:GBP_USD", "OANDA:USD_JPY", "OANDA:XAU_USD"]
+SYMBOLS_FOREX = ["FX:EURUSD", "FX:GBPUSD", "FX:USDJPY", "FOREXCOM:XAUUSD"]
 # Finnhub stocks: tickers US directs
 SYMBOLS_ACTIONS = ["AAPL", "TSLA", "NVDA", "SPY"]
 
