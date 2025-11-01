@@ -161,10 +161,10 @@ def keep_alive():
     while True:
         print("💤 Bot monitor — thread check OK")
         sys.stdout.flush()
+        global bot_thread 
         if not bot_thread.is_alive():
             print("⚠️ Thread mort — relance du bot")
-            try:
-                global bot_thread
+            try: 
                 bot_thread = threading.Thread(target=loop, daemon=True)
                 bot_thread.start()
             except Exception as e:
