@@ -155,6 +155,23 @@ if __name__ == "__main__":
     @app.route('/')
     def home():
         return "Bot actif ✅"
+import sys
 
-    port = int(os.environ.get("PORT", 5000))
+def keep_alive():
+    while True:
+        print("💤 Bot monitor — thread check OK")
+        sys.stdout.flush()
+        if not bot_thread.is_alive():
+            print("⚠️ Thread mort — relance du bot")
+            try:
+                global bot_thread
+                bot_thread = threading.Thread(target=loop, daemon=True)
+                bot_thread.start()
+            except Exception as e:
+                print("Erreur relance :", e)
+        time.sleep(60)
+
+monitor_thread = threading.Thread(target=keep_alive, daemon=True)
+monitor_thread.start()
+port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
