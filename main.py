@@ -122,10 +122,10 @@ def check_and_send(sym, chat_id):
             msg = f"""{prefix}
 💱 {sym} — (4h)
 
-📈 EMA20 ({latest['ema20']:.2f}) {'>' if latest['ema20'] > latest['ema50'] else '<'} EMA50 ({latest['ema50']:.2f})
-📉 MACD ({latest['macd']:.2f}) {'>' if latest['macd'] > latest['signal'] else '<'} Signal ({latest['signal']:.2f})
+📈 EMA20 ({latest['ema20']:.4f}) {'>' if latest['ema20'] > latest['ema50'] else '<'} EMA50 ({latest['ema50']:.4f})
+📉 MACD ({latest['macd']:.4f}) {'>' if latest['macd'] > latest['signal'] else '<'} Signal ({latest['signal']:.4f})
 💪 RSI : {latest['rsi']:.1f}
-💰 Prix : {current_price:.2f} ({pct_change:+.2f}%)
+💰 Prix : {current_price:.4f} ({pct_change:+.4f}%)
 ⚡ Signal Global → {' / '.join(signals) if signals else 'Aucun signal'}
 🕒 {datetime.now(pytz.timezone('Europe/Paris')).strftime('%Y-%m-%d %H:%M:%S')}
 """
