@@ -11,20 +11,18 @@ import threading
 
 # ========= CONFIG GÉNÉRALE =========
 
-TELEGRAM_TOKEN = "7381197277:AAFyOkwfQvqCRMnTiWYT-5eIr_tF6_lQbEU"  # ⬅️ METS TON TOKEN ICI
+TELEGRAM_TOKEN = "7381197277:AAFyOkwfQvqCRMnTiWYT-5eIr_tF6_lQbEU"
 
 # Canaux Telegram
-CHAT_SWING = "@TradeSignalAI"     # bot 4h (crypto + forex)
-CHAT_SCALP = "@ScalpSignalAI"     # bot 15m (crypto only, crée un canal et mets son @ ici)
+CHAT_CRYPTO_SWING = "@TradeSignalAI"   # bot 4h cryptos
+CHAT_FOREX_SWING  = "@TradeForexIA"    # bot 4h forex
+CHAT_SCALP        = "@ScalpSignalAI"   # bot 15m (crypto only)
 
 # Paires CRYPTO sur Kraken
 SYMBOLS_CRYPTO = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
 
 # Paires FOREX sur Kraken (format ccxt/kraken : EUR/USD, etc.)
 SYMBOLS_FOREX = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CAD"]
-
-# Pour le code, on fait une liste globale pour le swing (4h)
-SYMBOLS_SWING = SYMBOLS_CRYPTO + SYMBOLS_FOREX
 
 # Timeframes
 TF_SWING = "4h"
@@ -91,11 +89,11 @@ def fetch_ohlcv(symbol: str, timeframe: str, limit: int = 150) -> pd.DataFrame:
     return df
 
 
-def analyze(df: pd.DataFrame):
+# ========= ANALYSE SWING (4H : EMA20 / EMA50) =========
+
+def analyze_swing(df: pd.DataFrame):
     """
-    Calcule EMA20, EMA50, MACD, RSI et renvoie :
-    - latest : dict avec les dernières valeurs
-    - signals : liste de signaux [ "EMA — BUY", "MACD — SELL", "DOUBLE BUY", ... ]
+    Analyse pour le bot 4h : EMA20 / EMA50, MACD, RSI, volume.
     """
     close = df["close"]
     volume = df["volume"]
@@ -122,7 +120,7 @@ def analyze(df: pd.DataFrame):
     ema_dir = "BUY" if latest["ema20"] > latest["ema50"] else "SELL"
     macd_dir = "BUY" if latest["macd"] > latest["signal"] else "SELL"
 
-    # Croisements EMA
+    # Croisements EMA20 / EMA50
     if len(ema20) >= 2 and len(ema50) >= 2:
         if ema20.iloc[-2] <= ema50.iloc[-2] and ema20.iloc[-1] > ema50.iloc[-1]:
             signals.append("EMA — BUY")
@@ -143,10 +141,73 @@ def analyze(df: pd.DataFrame):
     return latest, signals
 
 
+# ========= ANALYSE SCALP (15M : EMA7 / EMA20) =========
+
+def analyze_scalp(df: pd.DataFrame):
+    """
+    Analyse pour le scalp 15m : EMA7 / EMA20, MACD, RSI, volume.
+    """
+    close = df["close"]
+    volume = df["volume"]
+
+    ema_short = ema(close, 7)
+    ema_long = ema(close, 20)
+    rsi_v = rsi(close, 21)
+    macd_line, signal_line, hist = macd(close)
+
+    latest = {
+        "time": df["time"].iloc[-1],
+        "close": float(close.iloc[-1]),
+        # interne : "ema20" = EMA7, "ema50" = EMA20 (on change juste les labels à l'affichage)
+        "ema20": float(ema_short.iloc[-1]),
+        "ema50": float(ema_long.iloc[-1]),
+        "rsi": float(rsi_v.iloc[-1]),
+        "macd": float(macd_line.iloc[-1]),
+        "signal": float(signal_line.iloc[-1]),
+        "volume": float(volume.iloc[-1]),
+    }
+
+    signals = []
+
+    # Direction EMA & MACD
+    ema_dir = "BUY" if latest["ema20"] > latest["ema50"] else "SELL"
+    macd_dir = "BUY" if latest["macd"] > latest["signal"] else "SELL"
+
+    # Croisements EMA7 / EMA20
+    if len(ema_short) >= 2 and len(ema_long) >= 2:
+        if ema_short.iloc[-2] <= ema_long.iloc[-2] and ema_short.iloc[-1] > ema_long.iloc[-1]:
+            signals.append("EMA — BUY")
+        elif ema_short.iloc[-2] >= ema_long.iloc[-2] and ema_short.iloc[-1] < ema_long.iloc[-1]:
+            signals.append("EMA — SELL")
+
+    # Croisements MACD
+    if len(macd_line) >= 2 and len(signal_line) >= 2:
+        if macd_line.iloc[-2] <= signal_line.iloc[-2] and macd_line.iloc[-1] > signal_line.iloc[-1]:
+            signals.append("MACD — BUY")
+        elif macd_line.iloc[-2] >= signal_line.iloc[-2] and macd_line.iloc[-1] < signal_line.iloc[-1]:
+            signals.append("MACD — SELL")
+
+    # DOUBLE SIGNAL EMA + MACD (direction actuelle)
+    if ema_dir == macd_dir:
+        signals.append(f"DOUBLE {ema_dir}")
+
+    return latest, signals
+
+
+# ========= CONSTRUCTION DU MESSAGE =========
+
 def build_message(symbol: str, timeframe: str, latest: dict, signals, prefix: str = "") -> str:
     """Construit le message Telegram avec toutes les infos techniques."""
     paris_tz = pytz.timezone("Europe/Paris")
     now_str = datetime.now(paris_tz).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Labels EMA différents pour swing (4h) et scalp (15m)
+    if timeframe == "15m":
+        ema_short_label = "EMA7"
+        ema_long_label = "EMA20"
+    else:
+        ema_short_label = "EMA20"
+        ema_long_label = "EMA50"
 
     ema_relation = ">" if latest["ema20"] > latest["ema50"] else "<"
     macd_relation = ">" if latest["macd"] > latest["signal"] else "<"
@@ -155,7 +216,7 @@ def build_message(symbol: str, timeframe: str, latest: dict, signals, prefix: st
 
     msg = f"""{prefix}📊 {symbol} — ({timeframe})
 
-📈 EMA20 ({latest['ema20']:.5f}) {ema_relation} EMA50 ({latest['ema50']:.5f})
+📈 {ema_short_label} ({latest['ema20']:.5f}) {ema_relation} {ema_long_label} ({latest['ema50']:.5f})
 📉 MACD ({latest['macd']:.6f}) {macd_relation} Signal ({latest['signal']:.6f})
 💪 RSI : {latest['rsi']:.3f}
 📊 Volume : {latest['volume']:.2f}
@@ -169,7 +230,7 @@ def build_message(symbol: str, timeframe: str, latest: dict, signals, prefix: st
 
 # ========= LOGIQUE BOT 4H (SWING CRYPTO + FOREX) =========
 
-def process_symbol_swing(symbol: str):
+def process_symbol_swing(symbol: str, chat_id: str):
     """Traite un symbole pour le bot 4h en mode événement (crypto + forex)."""
     global last_signals, last_prices
 
@@ -177,7 +238,7 @@ def process_symbol_swing(symbol: str):
 
     try:
         df = fetch_ohlcv(symbol, TF_SWING, limit=150)
-        latest, signals = analyze(df)
+        latest, signals = analyze_swing(df)
         current_price = latest["close"]
 
         prev_signals = last_signals.get(key)
@@ -205,7 +266,7 @@ def process_symbol_swing(symbol: str):
 
         if send and signals:
             msg = build_message(symbol, TF_SWING, latest, signals, prefix=prefix)
-            send_msg(CHAT_SWING, msg)
+            send_msg(chat_id, msg)
             print(msg)
 
     except Exception as e:
@@ -215,8 +276,12 @@ def process_symbol_swing(symbol: str):
 def loop_swing():
     """Boucle infinie pour le bot 4h (crypto + forex)."""
     while True:
-        for sym in SYMBOLS_SWING:
-            process_symbol_swing(sym)
+        # Cryptos → canal crypto
+        for sym in SYMBOLS_CRYPTO:
+            process_symbol_swing(sym, CHAT_CRYPTO_SWING)
+        # Forex → canal forex
+        for sym in SYMBOLS_FOREX:
+            process_symbol_swing(sym, CHAT_FOREX_SWING)
         time.sleep(INTERVAL_SWING)
 
 
@@ -230,7 +295,7 @@ def process_symbol_scalp(symbol: str):
 
     try:
         df = fetch_ohlcv(symbol, TF_SCALP, limit=200)
-        latest, signals = analyze(df)
+        latest, signals = analyze_scalp(df)
         current_price = latest["close"]
         last_candle_time = latest["time"]  # timestamp de la dernière bougie 15m
 
@@ -264,7 +329,7 @@ def process_symbol_scalp(symbol: str):
             send_msg(CHAT_SCALP, msg)
             print(msg)
 
-        # 3) Résumé à chaque nouvelle bougie 15m (Option C)
+        # 3) Résumé à chaque nouvelle bougie 15m
         if prev_summary_time is None or last_candle_time > prev_summary_time:
             summary_prefix = "🕒 Résumé SCALP (nouvelle bougie 15m)\n\n"
             summary_msg = build_message(symbol, TF_SCALP, latest, signals, prefix=summary_prefix)
